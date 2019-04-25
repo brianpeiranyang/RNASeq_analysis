@@ -1,0 +1,110 @@
+#!/bin/bash
+
+file=*.fastq.gz
+
+# for f in $file
+# do
+# echo $f
+# done
+
+for file1 in $file; do
+    file2="${file1%.1.fastq.gz}.2.fastq.gz"
+    if [[ -e "$file2" ]]; then
+        printf '%s\t%s\n' "$file1" "$file2"
+    fi
+done
+
+for fastq1 in $file; do
+    fastq2="${fastq1%.1.fastq.gz}.2.fastq.gz"
+    sh paired_analysis.sh $fastq1 $fastq2
+done
+
+
+for fastq1 in $file; do
+    fastq2="${fastq1%.1.fastq.gz}.2.fastq.gz"
+    if [[ -e "$fastq2" ]]; then
+        printf '%s\t%s\n' "$fastq1" "$fastq2"
+    fi
+done
+
+
+#!/bin/bash
+
+file=*.fastq.gz
+
+for fastq1 in $file; do
+    fastq2="${fastq1%.1.fastq.gz}.2.fastq.gz"
+    if [[ -e "$fastq2" ]]; then
+        sh paired_analysis.sh $fastq1 $fastq2
+    fi
+done
+
+
+#!/bin/bash/
+
+# initialize a variable with an intuitive name to store the name of the input fastq file
+
+fastq1=$1
+fastq2=$2
+
+# grab base of filename for naming outputs
+base=`basename $fastq1 .1.fastq.gz`
+echo "Sample name is $base"
+
+# STAR index directory
+starref=n/scratch2/py57/rat_alignment_test/STAR_ref/Rn6_index24/
+
+STAR --genomeDir $starref \
+--runThreadN 6 \
+--readFilesIn $fastq1 $fastq2
+--readFilesCommand zcat
+--outFileNamePrefix /n/scratch2/py57/rat_alignment_test/results/STAR/test/${base}_ \
+--outSAMtype BAM SortedByCoordinate \
+--outSAMunmapped Within \
+--outSAMattributes Standard 
+
+
+#!/bin/bash
+
+# set up the software environment
+module load fastqc/0.11.3
+module load gcc/6.2.0
+module load star/2.5.4a
+module load samtools/1.3.1
+unset DISPLAY
+export PATH=/n/app/bcbio/dev/anaconda/bin:$PATH
+
+# initialize a variable with an intuitive name to store the name of the input fastq file
+fastq1=$1
+fastq2=$2
+
+# grab base of filename for naming outputs
+base=`basename $fastq1 .1.fastq.gz`
+echo "Sample name is $base"
+
+# set up output filenames and locations
+fastqc_out=/n/scratch2/py57/rat_alignment_test/results/fastqc/test/
+align_out_bam=/n/scratch2/py57/rat_alignment_test/results/STAR/test/${base}_Aligned.sortedByCoord.out.bam
+qualimap_out=/n/scratch2/py57/rat_alignment_test/results/qualimap/test/${base}.qualimap
+featurecount_out=/n/scratch2/py57/rat_alignment_test/results/featurecount/test/${base}_featurecount.txt
+
+# run fastqc
+fastqc $fastq1 \
+-o $fastqc_out
+
+fastqc $fastq2 \
+-o $fastqc_out
+
+# run qualimap
+qualimap rnaseq \
+-outdir $qualimap_out \
+-a proportional \
+-bam $align_out_bam \
+-gtf /n/scratch2/py57/rat_alignment_test/STAR_ref/Rattus_norvegicus.Rnor_6.0.95.gtf \
+--java-mem-size=8G
+
+# run fearurecount
+featureCounts -T 4 -p \
+-a /n/scratch2/py57/rat_alignment_test/STAR_ref/Rattus_norvegicus.Rnor_6.0.95.gtf \
+-o $featurecount_out \
+$align_out_bam
